@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="../libs/twgl.js"></script>
+    <script src="../libs/shape.js"></script>
+    <script src="../libs/m4.js"></script>
+</head>
+
+<body>
+    <canvas id="c" width="500" height="500"></canvas>
+    <script>
+         function computeMatrix(viewProjectionMatrix, translation, xRotation, yRotation) {
+            var matrix = m4.translate(viewProjectionMatrix,
+                translation[0],
+                translation[1],
+                translation[2]);
+            matrix = m4.xRotate(matrix, xRotation);
+            return m4.yRotate(matrix, yRotation);
+        }
+    </script>
+    <script type="x-shader/x-vertex" id="vs">
+        attribute vec4 position;
+  
+        uniform mat4 u_matrix;
+      
+        void main() {
+          gl_Position = u_matrix*position;
+         
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="fs">
+
+        precision mediump float;
+
+
+        
+        void main() {
+       
+        
+          gl_FragColor = vec4(1,0,0.5,1);
+        }
+    </script>
+    <script>
+        const gl = document.querySelector("#c").getContext("webgl");
+        const programInfo = twgl.createProgramInfo(gl, ["vs", "fs"]);
+     
+        const bufferInfo = twgl.createBufferInfoFromArrays(gl, createFivePointerStar(20));
+        
+
+        function render(time) {
+            time *= 0.0005;
+            twgl.resizeCanvasToDisplaySize(gl.canvas);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+
+            gl.enable(gl.CULL_FACE);
+            gl.enable(gl.DEPTH_TEST);
+
+
+            var projectionMatrix  = m4.perspective(Math.PI/3,gl.canvas.clientWidth / gl.canvas.clientHeight,1,2000)
+            var cameraPosition = [0, 0, 100];
+            var target = [0, 0, 0];
+            var up = [0, 1, 0];
+            var cameraMatrix = m4.lookAt(cameraPosition, target, up);
+            var viewMatrix = m4.inverse(cameraMatrix);
+            var viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
+            var cubeTranslation   = [0, 0, 0];
+            var cubeXRotation   = -time;
+            var cubeYRotation   =  -time;
+            const uniforms = {
+                u_matrix:computeMatrix(
+                            viewProjectionMatrix,
+                            cubeTranslation,
+                            cubeXRotation,
+                            cubeYRotation),
+                u_colorMult:[1,0.5,0.5,1]
+            }
+            gl.useProgram(programInfo.program);
+            twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
+            twgl.setUniforms(programInfo, uniforms);
+            twgl.drawBufferInfo(gl, bufferInfo);
+
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+     
+    </script>
+</body>
+
+</html>

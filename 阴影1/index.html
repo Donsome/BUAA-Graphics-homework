@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="../libs/twgl.js"></script>
+    <script src="../libs/shape.js"></script>
+    <script src="../libs/m4.js"></script>
+    <style>
+        
+        canvas{
+            position: absolute;
+            left: 0;
+            right: 0;
+            top:0;
+            bottom: 0;
+            margin: auto;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c" ></canvas>
+    <script>
+        function computeMatrix(viewProjectionMatrix, translation, xRotation, yRotation) {
+            var m = m4.identity()
+            var worldmatrix = m4.translate(m,translation[0],
+                translation[1],
+                translation[2])
+         
+            worldmatrix = m4.xRotate(worldmatrix, xRotation);
+            worldmatrix= m4.yRotate(worldmatrix, yRotation);
+           
+            var worldInverseMatrix = m4.inverse(worldmatrix);
+            var worldInverseTransposeMatrix = m4.transpose(worldInverseMatrix);
+            return[worldmatrix,worldInverseTransposeMatrix]
+        }
+    </script>
+    <script type="x-shader/x-vertex" id="vs">
+        attribute vec4 position;
+        attribute vec4 color;
+        attribute vec3 normal;
+     
+        uniform mat4 u_view;
+        uniform mat4 u_world;
+        uniform mat4 u_projection;
+        uniform mat4 u_reverseworld;
+        varying vec4 v_color;
+        varying vec3 v_normal;
+        uniform vec4 u_planePosition;
+        void main() {
+      
+          gl_Position = u_projection*u_view*u_world * position;
+        
+   
+          v_color = color;
+          v_normal =  mat3(u_reverseworld) * normal;;
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="fs">
+
+        precision mediump float;
+
+    
+        varying vec4 v_color;
+        varying vec3 v_normal;
+
+        uniform vec4 u_colorMult;
+        uniform vec3 u_reverseLightDirection;
+        void main() {
+
+
+            vec3 normal = normalize(v_normal);
+            float light = dot(normal, u_reverseLightDirection);
+            gl_FragColor = v_color * u_colorMult;
+            gl_FragColor.rgb *= light;
+        }
+    </script>
+
+    <script type = "x-shader/x-vertex" id ='vs2'>
+        
+        attribute vec4 position;
+       
+        uniform vec3 u_reverseLightDirection;
+        uniform mat4 u_view;
+        uniform mat4 u_world;
+        uniform mat4 u_projection;
+        uniform vec4 u_planePosition;
+
+
+        void main() {
+            vec3 worldPosition = ( u_world*position).xyz;
+            vec3 resPosition;
+            resPosition.x = (u_planePosition.y - position.y)/u_reverseLightDirection.y * u_reverseLightDirection.x + worldPosition.x;
+            resPosition.y = (u_planePosition.y - position.y)/u_reverseLightDirection.y * u_reverseLightDirection.y + worldPosition.y;
+            
+            gl_Position =   u_projection *u_view*  vec4(((u_planePosition.y-worldPosition.y)/u_reverseLightDirection.y) *(u_reverseLightDirection.xyz) + ( worldPosition),1);
+       
+         
+        }
+    </script>
+
+     <script type = "x-shader/x-fragment" id = "fs2">
+        precision mediump float;
+        void main () {
+            gl_FragColor = vec4(0, 0.0, 0.0, 1);
+        }
+    
+    </script>
+
+    
+    <script>
+        const gl = document.querySelector("#c").getContext("webgl");
+        const programInfo = twgl.createProgramInfo(gl, ["vs", "fs"]);
+        const shadowProgramInfo = twgl.createProgramInfo(gl,["vs2","fs2"])
+
+        const u_planePosition = [1,-30,1,1] 
+
+        var sphereUniforms = {
+            u_colorMult: [0.5, 1, 0.5, 1],
+         
+            u_reverseLightDirection:[0.5,0.7,1],
+            u_world: m4.identity(),
+            u_view: m4.identity(),
+            u_projection:m4.identity(),
+            u_reverseworld:m4.identity(),
+            u_planePosition:u_planePosition,
+        };
+        var cubeUniforms = {
+            u_colorMult: [1, 0.5, 0.5, 1],
+           
+            u_reverseLightDirection:[0.5,0.7,1],
+            u_world: m4.identity(),
+            u_view: m4.identity(),
+            u_projection:m4.identity(),
+            u_reverseworld:m4.identity(),
+            u_planePosition:u_planePosition,
+        };
+        var fiveStarUniforms = {
+            u_colorMult: [0.5, 0.5, 1, 1],
+          
+            u_reverseLightDirection:[0.5,0.7,1],
+            u_world: m4.identity(),
+            u_view: m4.identity(),
+            u_projection:m4.identity(),
+            u_reverseworld:m4.identity(),
+            u_planePosition:u_planePosition,
+        };
+        
+        sphereUniforms.u_reverseLightDirection= 
+                [sphereUniforms.u_reverseLightDirection[0] *Math.cos(Math.PI/180) 
+                -sphereUniforms.u_reverseLightDirection[2]*Math.sin(Math.PI/180),
+                0.7, 
+                sphereUniforms.u_reverseLightDirection[0] *Math.sin(Math.PI/180) 
+                +sphereUniforms.u_reverseLightDirection[2]*Math.cos(Math.PI/180)]
+            console.log(sphereUniforms)
+            
+        var planeUniforms = {
+            u_colorMult: [0.3,0.6, 0.3, 1],
+           
+            u_reverseLightDirection:[0,1,0],
+            u_world: m4.identity(),
+            u_view: m4.identity(),
+            u_projection:m4.identity(),
+            u_reverseworld:m4.identity(),
+            u_planePosition:u_planePosition,
+        };
+        var objectToDraw = [{
+            programInfo: programInfo,
+            bufferInfo: twgl.createBufferInfoFromArrays(gl, createSphere(20, 7)),
+            uniforms: sphereUniforms
+        }, {
+            programInfo: programInfo,
+            bufferInfo: twgl.createBufferInfoFromArrays(gl, createFivePointerStar(20, 7)),
+            uniforms: fiveStarUniforms
+        }, {
+            programInfo: programInfo,
+            bufferInfo: twgl.createBufferInfoFromArrays(gl, createCube(20)),
+            uniforms: cubeUniforms
+        },{
+            programInfo:programInfo,
+            bufferInfo: twgl.createBufferInfoFromArrays(gl, createPlane(400,100)),
+            uniforms:planeUniforms
+        }]
+        var sphereTranslation = [  0, 0, 0];
+        var cubeTranslation   = [-40, 0, 0];
+        var fiveStarTranslation   = [ 40, 0, 0];
+        var planeTranslation = [0,60,0];
+      
+        function render(time) {
+            time *= 0.0005;
+          
+            twgl.resizeCanvasToDisplaySize(gl.canvas);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+           // gl.enable(gl.CULL_FACE);
+            gl.enable(gl.DEPTH_TEST);
+
+
+           
+            var projectionMatrix = m4.perspective(Math.PI / 3, gl.canvas.clientWidth / gl.canvas.clientHeight, 1,
+                2000)
+            var cameraPosition = [0, 30, 150];
+            var target = [0, 0, 0];
+            var up = [0, 1, 0];
+            var cameraMatrix = m4.lookAt(cameraPosition, target, up);
+            var viewMatrix = m4.inverse(cameraMatrix);
+            var viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
+
+         
+            objectToDraw.forEach(item=>{
+                item.uniforms.u_view = viewMatrix;
+                item.uniforms.u_projection = projectionMatrix;
+                //item.uniforms.u_reverseLightDirection = [0.5,0.7,1];
+                // console.log(item.uniforms.u_reverseLightDirection[0]*Math.cos(x*Math.PI/180) -item.uniforms.u_reverseLightDirection[2]*Math.sin(x*Math.PI/180))
+                // console.log(item.uniforms.u_reverseLightDirection[0] *Math.cos(x*Math.PI/180) -item.uniforms.u_reverseLightDirection[2]*Math.sin(x*Math.PI/180))
+               
+                var x = 0.1
+                item.uniforms.u_reverseLightDirection= 
+                [item.uniforms.u_reverseLightDirection[0] *Math.cos(x*Math.PI/180) 
+                -item.uniforms.u_reverseLightDirection[2]*Math.sin(x*Math.PI/180),
+                0.7, 
+                item.uniforms.u_reverseLightDirection[0] *Math.sin(x*Math.PI/180) 
+                +item.uniforms  .u_reverseLightDirection[2]*Math.cos(x*Math.PI/180)]
+             })
+
+
+
+            var sphereXRotation =  time;
+            var sphereYRotation =  time;
+            var cubeXRotation   = -time;
+            var cubeYRotation   =  time;
+            var fiveStarXRotation   =  time;
+            var fiveStarYRotation   = -time;
+            var tmp  = computeMatrix(
+                viewProjectionMatrix,
+                sphereTranslation,
+                sphereXRotation,
+                sphereYRotation);
+            sphereUniforms.u_world = tmp[0]
+            sphereUniforms.u_reverseworld = tmp[1]
+            sphereUniforms.u_view  = viewMatrix;
+            var tmp  =computeMatrix(
+                viewProjectionMatrix,
+                cubeTranslation,
+                cubeXRotation,
+                cubeYRotation);
+
+            cubeUniforms.u_world=tmp[0]
+            cubeUniforms.u_reverseworld = tmp[1]
+            tmp = computeMatrix(
+                viewProjectionMatrix,
+                fiveStarTranslation,
+                fiveStarXRotation,
+                fiveStarYRotation);
+            fiveStarUniforms.u_world= tmp[0]
+            fiveStarUniforms.u_reverseworld = tmp[1]
+
+            tmp = computeMatrix(
+                viewProjectionMatrix,
+                planeTranslation,
+                0,
+                0);
+            planeUniforms.u_world = tmp[0]
+
+            objectToDraw.forEach(obj =>{
+                var programInfo = obj.programInfo;
+                var bufferInfo = obj.bufferInfo;
+                gl.useProgram(programInfo.program);
+                twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
+                twgl.setUniforms(programInfo, obj.uniforms);
+                twgl.drawBufferInfo(gl, bufferInfo);
+            })
+            for(var i = 0;i<3;i++){
+
+                obj= objectToDraw[i];
+                var programInfo  = shadowProgramInfo;
+                var bufferInfo = obj.bufferInfo;
+                gl.useProgram(programInfo.program);
+                twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
+                twgl.setUniforms(programInfo, obj.uniforms);
+                twgl.drawBufferInfo(gl, bufferInfo);
+            }
+           
+
+          
+          
+         
+
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+    </script>
+</body>
+
+</html>

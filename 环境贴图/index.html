@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="../libs/twgl.js"></script>
+    <script src="../libs/shape.js"></script>
+    <script src="../libs/m4.js"></script>
+    <script src="../libs/webgl-lessons-ui.js"></script>
+    <style>
+        canvas {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            margin: auto;
+            width: 100%;
+            height: 100%;
+        }
+        #uiContainer{
+            position: absolute;
+            right: 0;
+            top:0;
+      
+            font-size: 30px;
+            color: #3e3e3e;
+        }
+        .gman-widget-outer{
+            display: flex;
+            justify-content: space-between;
+            
+        }
+    </style>
+     
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+    <div id="uiContainer">
+        <div id="ui">
+        </div>
+    </div>
+  
+    <script type="x-shader/x-vertex" id="vs">
+        attribute vec4 position;
+        attribute vec4 color;
+        uniform mat4 u_view;
+        uniform mat4 u_world;
+        uniform mat4 u_projection;
+
+        varying vec4 v_color;
+
+   
+        void main() {
+          gl_Position = u_projection*u_view*u_world * position;
+          v_color = color;
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="fs">
+
+
+
+        precision mediump float;
+
+        varying vec4 v_color;
+       
+        uniform vec4 u_colorMult;
+        void main() {
+            gl_FragColor = v_color * u_colorMult;
+           
+        }
+    </script>
+    <script type="x-shader/x-vertex" id="sphere-vs">
+        attribute vec4 position;
+        attribute vec3 normal;
+
+
+        uniform mat4 u_view;
+        uniform mat4 u_world;
+        uniform mat4 u_projection;
+  
+
+    
+        varying vec3 v_worldPosition;
+        varying vec3 v_worldNormal;
+   
+        void main() {
+            gl_Position = u_projection*u_view*u_world * position;
+          
+            v_worldPosition = (u_world * position).xyz;
+            v_worldNormal = mat3(u_world) * normal;
+        }
+    
+    </script>
+    <script type="x-shader/x-fragment" id="sphere-fs">
+        precision mediump float;
+
+    
+   
+        uniform samplerCube cubeTexture;
+        varying vec3 v_worldPosition;
+        varying vec3 v_worldNormal;
+        uniform vec3 u_eye;
+     
+        void main() {
+            vec3 worldNormal = normalize(v_worldNormal);
+           vec3 eyeToSurfaceDir = normalize(v_worldPosition - u_eye);
+           vec3 direction = reflect(eyeToSurfaceDir,worldNormal);
+           
+           gl_FragColor = textureCube(cubeTexture, -direction);
+           if(gl_FragColor.x == 0.0 && gl_FragColor.y == 0.0 && gl_FragColor.z == 0.0){
+               gl_FragColor = vec4(0.3,0.5,0.7,1);
+           }
+          
+        }
+    </script>
+    <script type="x-shader/x-vertex" id="cube-vs">
+        attribute vec4 position;
+        attribute vec4 color;
+        uniform mat4 u_view;
+        uniform mat4 u_world;
+        uniform mat4 u_projection;
+
+        varying vec4 v_color;
+
+   
+        void main() {
+          gl_Position = u_projection*u_view*u_world * position;
+          v_color = color;
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="cube-fs">
+
+
+
+        precision mediump float;
+
+        varying vec4 v_color;
+       
+        uniform vec4 u_colorMult;
+        void main() {
+            gl_FragColor = v_color * u_colorMult;
+           
+        }
+    </script>
+
+    <script>
+        const gl = document.querySelector("#c").getContext("webgl");
+        const programInfo = twgl.createProgramInfo(gl, ["vs", "fs"]);
+        const sphereProgramInfo = twgl.createProgramInfo(gl, ["sphere-vs", "sphere-fs"])
+        const cubeProgramInfo = twgl.createProgramInfo(gl,["cube-vs","cube-fs"])
+        // 初始化纹理和缓冲区
+        var targets = [gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+            gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+            gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+            gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
+        ];
+
+        // 创建缓冲区
+
+        const settings = {
+            cameraX: 0,
+            cameraY: 100,
+            cameraZ: 100
+        };
+        webglLessonsUI.setupUI(document.querySelector('#ui'), settings, [{
+                type: 'slider',
+                key: 'cameraX',
+                min: -200,
+                max: 200,
+                change: render,
+                precision: 2,
+                step: 1,
+            },
+            {
+                type: 'slider',
+                key: 'cameraY',
+                min:-200,
+                max:200,
+                change: render,
+                precision: 2,
+                step:1,
+            },
+            {
+                type: 'slider',
+                key: 'cameraZ',
+                min: -200,
+                max: 200,
+                change: render,
+                precision: 2,
+                step: 1,
+            },
+
+        ]);
+        var fbo = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        fbo.width = 256;
+        fbo.height = 256;
+        // 创建纹理
+        var cubetexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubetexture)
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        targets.forEach((item, i) => {
+            gl.texImage2D(targets[i], 0, gl.RGBA, fbo.width, fbo.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+        })
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+
+      
+        var sphereUniforms = {
+            u_colorMult: [0.5, 1, 0.5, 1],
+            u_world: m4.translate(m4.identity(), 0, 0, 0),
+            u_view: m4.identity(),
+            u_projection: m4.identity(),
+            u_eye: [settings.cameraX,settings.cameraY,settings.cameraZ],
+            cubetexture: 0
+        };
+        var cubeUniforms = {
+            u_colorMult: [1, 0.5, 0.5, 1],
+            u_world: m4.translate(m4.identity(), 40, 0, 0),
+            u_view: m4.identity(),
+            u_projection: m4.identity(),
+
+        };
+        var fiveStarUniforms = {
+            u_colorMult: [0.5, 0.5, 1, 1],
+            u_world: m4.yRotate(m4.translate(m4.identity(), -40, 0, 0), Math.PI / 2),
+            u_view: m4.identity(),
+            u_projection: m4.identity(),
+
+        };
+
+        var planeUniforms = {
+            u_colorMult: [0.3, 0.6, 0.3, 1],
+            u_world: m4.translate(m4.identity(), 0, 0, 0),
+            u_view: m4.identity(),
+            u_projection: m4.identity(),
+
+        };
+        
+        var objectToDraw = [{
+            programInfo: sphereProgramInfo,
+            bufferInfo: twgl.createBufferInfoFromArrays(gl, createSphere(20, 7)),
+            uniforms: sphereUniforms
+        }, {
+            programInfo: programInfo,
+            bufferInfo: twgl.createBufferInfoFromArrays(gl, createFivePointerStar(20, 7)),
+            uniforms: fiveStarUniforms
+        }, {
+            programInfo: cubeProgramInfo,
+            bufferInfo: twgl.createBufferInfoFromArrays(gl, createCube(20)),
+            uniforms: cubeUniforms
+        }, {
+            programInfo: programInfo,
+            bufferInfo: twgl.createBufferInfoFromArrays(gl, createPlane(400, 100)),
+            uniforms: planeUniforms
+        }]
+
+        function drawObj(i) {
+            var obj = objectToDraw[i];
+            var programInfo = obj.programInfo;
+            var bufferInfo = obj.bufferInfo;
+            gl.useProgram(programInfo.program);
+            twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
+            twgl.setUniforms(programInfo, obj.uniforms);
+            twgl.drawBufferInfo(gl, bufferInfo);
+        }
+
+        function render() {
+
+            twgl.resizeCanvasToDisplaySize(gl.canvas);
+          
+
+
+
+            // 绘制到帧缓冲区
+            gl.disable(gl.DEPTH_TEST);
+            // 不开下面这个会有问题
+            gl.viewport(0, 0, fbo.width, fbo.height);
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+              gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+            targets.forEach((item, i) => {
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, targets[i], cubetexture, 0);
+
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+            })
+            var projectionMatrix = m4.perspective(Math.PI /3,fbo.width/fbo.height, 1, 1000)
+            var cameraPosition = [0, 0, 0];
+            var upMap = [
+                [0, 1, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+                [0, 0, -1],
+                [0, 1, 0],
+                [0, 1, 0]
+            ]
+            var lookAtMap = [
+                [1, 0, 0],
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, -1, 0],
+                [0, 0, 1],
+                [0, 0, -1],
+
+            ]
+
+            targets.forEach((item, i) => {
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, targets[i], cubetexture, 0);
+                var lookAt = lookAtMap[i];
+                var up = upMap[i];
+                var viewMatrix = m4.lookAt(cameraPosition, lookAt, up);
+                fiveStarUniforms.u_view = viewMatrix;
+                cubeUniforms.u_view = viewMatrix;
+                fiveStarUniforms.u_projection = projectionMatrix;
+                cubeUniforms.u_projection = projectionMatrix;
+                planeUniforms.u_view = viewMatrix;
+                planeUniforms.u_projection = projectionMatrix;
+                drawObj(1);
+                drawObj(2);
+                drawObj(3);
+            })
+
+
+            // 绘制到canvas
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            // gl.enable(gl.CULL_FACE);
+            gl.enable(gl.DEPTH_TEST);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+            var projectionMatrix = m4.perspective(Math.PI / 6, gl.canvas.clientWidth / gl.canvas.clientHeight, 1,500)
+            var cameraPosition = [settings.cameraX,settings.cameraY,settings.cameraZ];
+           
+            var target = [0, 0, 0];
+            var up = [0, 1, 0];
+            var cameraMatrix = m4.lookAt(cameraPosition, target, up);
+            var viewMatrix = m4.inverse(cameraMatrix);
+            var viewProjectionMatrix = m4.multiply(projectionMatrix, viewMatrix);
+            sphereUniforms.u_eye = cameraPosition;
+            objectToDraw.forEach(item => {
+                item.uniforms.u_view = viewMatrix;
+                item.uniforms.u_projection = projectionMatrix;
+            })
+            objectToDraw.forEach((obj, i) => {
+
+                drawObj(i);
+
+
+            })
+        }
+        render();
+    </script>
+</body>
+
+</html>
