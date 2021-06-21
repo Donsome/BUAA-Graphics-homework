@@ -95,9 +95,7 @@
         void main() {
             vec3 worldPosition = ( u_world*position).xyz;
             vec3 resPosition;
-            resPosition.x = (u_planePosition.y - position.y)/u_reverseLightDirection.y * u_reverseLightDirection.x + worldPosition.x;
-            resPosition.y = (u_planePosition.y - position.y)/u_reverseLightDirection.y * u_reverseLightDirection.y + worldPosition.y;
-            
+           
             gl_Position =   u_projection *u_view*  vec4(((u_planePosition.y-worldPosition.y)/u_reverseLightDirection.y) *(u_reverseLightDirection.xyz) + ( worldPosition),1);
        
          

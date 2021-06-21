@@ -31,6 +31,14 @@ function createFiveStarCenter(a){
 }
 ```
 
-![image-20210323201510885](C:\Users\栾帅\AppData\Roaming\Typora\typora-user-images\image-20210323201510885.png)
+![image-20210323201510885](..\imgs\image-20210323201510885.png)
 
-- 分别设置片段着色器的颜色值.
+- 后来又想到了第二种计算坐标的方法,使用旋转矩阵,
+  - ![Snipaste_2021-06-21_07-57-02](..\imgs\Snipaste_2021-06-21_07-57-02.png)
+  - 计算x1和x2 然后由旋转公式计算剩余的点
+    - $$ \begin{matrix} cos & -sin \\ sin &cos \end{matrix} * x $$
+    - 代码详见 /libs/shape.js
+  
+- 然后分别设置片段着色器的颜色值.
+
+  
